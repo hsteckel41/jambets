@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import { auth } from '@/lib/auth'
 import Link from 'next/link'
+import { BottomNav } from '@/components/bottom-nav'
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const session = await auth()
@@ -25,20 +26,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         {children}
       </main>
 
-      <nav className="sticky bottom-0 bg-[#09090B]/90 backdrop-blur-xl border-t border-white/[0.08] px-6 py-2 flex items-center justify-around">
-        <Link href="/feed" className="flex flex-col items-center gap-0.5 text-white/40 hover:text-white transition-colors py-1">
-          <span className="text-lg">📋</span>
-          <span className="text-[10px] font-medium">Board</span>
-        </Link>
-        <Link href="/market/new" className="flex flex-col items-center gap-0.5 text-white/40 hover:text-white transition-colors py-1">
-          <span className="text-lg">✍️</span>
-          <span className="text-[10px] font-medium">Write</span>
-        </Link>
-        <Link href="/my-bets" className="flex flex-col items-center gap-0.5 text-white/40 hover:text-white transition-colors py-1">
-          <span className="text-lg">💰</span>
-          <span className="text-[10px] font-medium">My Bets</span>
-        </Link>
-      </nav>
+      <BottomNav />
     </div>
   )
 }
