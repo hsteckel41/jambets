@@ -111,7 +111,12 @@ export default function NewMarketPage() {
         router.push(`/market/${market.id}`)
       } else {
         const err = await res.json().catch(() => ({}))
-        setError(err.error?.formErrors?.[0] ?? err.error ?? 'Something went sideways.')
+        const errMsg =
+          err.error?.formErrors?.[0] ??
+          Object.values(err.error?.fieldErrors ?? {}).flat()[0] ??
+          (typeof err.error === 'string' ? err.error : null) ??
+          'Something went sideways.'
+        setError(String(errMsg))
         setLoading(false)
       }
     } catch {
