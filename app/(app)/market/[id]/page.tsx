@@ -46,7 +46,7 @@ export default async function MarketPage({ params }: { params: { id: string } })
           <p className="text-xs text-white/40">{market.show.artist} · {market.show.venue}</p>
           <h1 className="text-xl font-bold mt-1 leading-snug">{market.question}</h1>
         </div>
-        <span className={cn('flex-shrink-0 text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full border mt-1', getStatusColor(market.status))}>
+        <span className={cn('flex-shrink-0 text-[11px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full border mt-1', getStatusColor(market.status))}>
           {getStatusLabel(market.status)}
         </span>
       </div>

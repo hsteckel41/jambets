@@ -44,3 +44,19 @@ body {
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 4px; }
 ::selection { background: rgba(124,58,237,0.4); color: #fff; }
+
+/* Style native datetime-local inputs to match dark theme */
+input[type="datetime-local"],
+input[type="date"] {
+  color-scheme: dark;
+}
+input[type="datetime-local"]::-webkit-calendar-picker-indicator,
+input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: invert(0.6);
+  cursor: pointer;
+  opacity: 0.5;
+}
+input[type="datetime-local"]::-webkit-calendar-picker-indicator:hover,
+input[type="date"]::-webkit-calendar-picker-indicator:hover {
+  opacity: 1;
+}

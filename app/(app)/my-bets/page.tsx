@@ -43,7 +43,7 @@ export default async function MyBetsPage() {
               <div className="gradient-border p-3 hover:bg-white/[0.02] transition-colors">
                 <div className="flex items-start justify-between gap-2">
                   <p className="text-sm font-medium">{market.question}</p>
-                  <span className={cn('flex-shrink-0 text-[10px] font-bold uppercase px-2 py-0.5 rounded-full border', getStatusColor(market.status))}>
+                  <span className={cn('flex-shrink-0 text-[11px] font-bold uppercase px-2 py-1 rounded-full border', getStatusColor(market.status))}>
                     {getStatusLabel(market.status)}
                   </span>
                 </div>
@@ -67,7 +67,7 @@ export default async function MyBetsPage() {
                 <div className={cn('gradient-border p-3 hover:bg-white/[0.02] transition-colors', needsResult && 'border-[#F59E0B]/30')}>
                   <div className="flex items-start justify-between gap-2">
                     <p className="text-sm font-medium">{bet.market.question}</p>
-                    <span className={cn('flex-shrink-0 text-[10px] font-bold uppercase px-2 py-0.5 rounded-full border', getStatusColor(bet.market.status))}>
+                    <span className={cn('flex-shrink-0 text-[11px] font-bold uppercase px-2 py-1 rounded-full border', getStatusColor(bet.market.status))}>
                       {getStatusLabel(bet.market.status)}
                     </span>
                   </div>

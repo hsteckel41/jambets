@@ -40,7 +40,7 @@ export function MarketCard({ market }: MarketCardProps) {
             </p>
           </div>
           <span className={cn(
-            'flex-shrink-0 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border',
+            'flex-shrink-0 text-[11px] font-bold uppercase tracking-wider px-2 py-1 rounded-full border',
             getStatusColor(market.status)
           )}>
             {getStatusLabel(market.status)}
