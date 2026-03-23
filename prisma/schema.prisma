@@ -1,0 +1,205 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model User {
+  id               String    @id @default(cuid())
+  name             String?
+  email            String?   @unique
+  emailVerified    DateTime?
+  image            String?
+  username         String?   @unique
+  venmoUsername    String?
+  reputationScore  Int       @default(100)
+  accounts         Account[]
+  sessions         Session[]
+  createdMarkets   Market[]  @relation("MarketCreator")
+  placedBets       Bet[]     @relation("BetBettor")
+  resultSubmissions ResultSubmission[]
+  createdAt        DateTime  @default(now())
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+  @@unique([identifier, token])
+}
+
+model Show {
+  id             String     @id @default(cuid())
+  artist         String
+  venue          String
+  city           String
+  date           DateTime   @db.Date
+  doorsTime      DateTime?
+  setBreakTime   DateTime?
+  showEndTime    DateTime?
+  status         ShowStatus @default(UPCOMING)
+  setlistFmId    String?    @unique
+  sourceUrl      String?
+  markets        Market[]
+  createdAt      DateTime   @default(now())
+  @@index([date])
+  @@index([artist])
+  @@index([status])
+}
+
+enum ShowStatus {
+  UPCOMING
+  DOORS_OPEN
+  SET_BREAK
+  ENDED
+}
+
+model Market {
+  id                 String       @id @default(cuid())
+  showId             String
+  creatorId          String
+  bettorId           String?
+  question           String
+  window             MarketWindow
+  visibility         Visibility   @default(PUBLIC)
+  status             MarketStatus @default(OPEN)
+  preShowClosesAt    DateTime?
+  setBreakClosesAt   DateTime?
+  show               Show         @relation(fields: [showId], references: [id])
+  creator            User         @relation("MarketCreator", fields: [creatorId], references: [id])
+  outcomes           Outcome[]
+  bets               Bet[]
+  createdAt          DateTime     @default(now())
+  @@index([showId])
+  @@index([status])
+  @@index([visibility, status])
+}
+
+enum MarketWindow {
+  PRE_SHOW
+  SET_BREAK
+  BOTH
+}
+
+enum Visibility {
+  PUBLIC
+  PRIVATE
+}
+
+enum MarketStatus {
+  OPEN
+  CLOSED
+  PENDING_RESULT
+  SETTLED
+  DISPUTED
+  VOIDED
+}
+
+model Outcome {
+  id       String  @id @default(cuid())
+  marketId String
+  label    String
+  odds     Int
+  market   Market  @relation(fields: [marketId], references: [id], onDelete: Cascade)
+  bets     Bet[]
+  @@index([marketId])
+}
+
+model Bet {
+  id              String    @id @default(cuid())
+  marketId        String
+  bettorId        String
+  outcomeId       String
+  amountDollars   Decimal?  @db.Decimal(10, 2)
+  venmoUsername   String?
+  status          BetStatus @default(PLACED)
+  market          Market    @relation(fields: [marketId], references: [id])
+  bettor          User      @relation("BetBettor", fields: [bettorId], references: [id])
+  outcome         Outcome   @relation(fields: [outcomeId], references: [id])
+  submissions     ResultSubmission[]
+  dispute         Dispute?
+  createdAt       DateTime  @default(now())
+  @@unique([marketId, bettorId])
+  @@index([bettorId])
+}
+
+enum BetStatus {
+  PLACED
+  SETTLED
+  DISPUTED
+  VOIDED
+}
+
+model ResultSubmission {
+  id          String   @id @default(cuid())
+  betId       String
+  userId      String
+  claim       Claim
+  explanation String   @db.VarChar(280)
+  submittedAt DateTime @default(now())
+  bet         Bet      @relation(fields: [betId], references: [id])
+  user        User     @relation(fields: [userId], references: [id])
+  @@unique([betId, userId])
+  @@index([betId])
+}
+
+enum Claim {
+  WON
+  LOST
+}
+
+model Dispute {
+  id         String             @id @default(cuid())
+  betId      String             @unique
+  reason     DisputeReason
+  status     DisputeStatus      @default(OPEN)
+  resolution DisputeResolution?
+  resolvedAt DateTime?
+  bet        Bet                @relation(fields: [betId], references: [id])
+  createdAt  DateTime           @default(now())
+}
+
+enum DisputeReason {
+  BOTH_WON
+  BOTH_LOST
+  TIMEOUT
+}
+
+enum DisputeStatus {
+  OPEN
+  RESOLVED
+}
+
+enum DisputeResolution {
+  WON_BY_CREATOR
+  WON_BY_BETTOR
+  VOID
+}
