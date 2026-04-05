@@ -2,101 +2,103 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { OddsBuilder } from '@/components/odds-builder'
-import { Search, Globe, Lock } from 'lucide-react'
+
+const ARTISTS = [
+  'Phish',
+  'Goose',
+  'Widespread Panic',
+  'Billy Strings',
+  'moe.',
+  "Umphrey's McGee",
+  'String Cheese Incident',
+  'Eggy',
+  'Dave Matthews Band',
+  'King Gizzard and the Lizard Wizard',
+  'Spafford',
+  'Other',
+]
+
+const PRESETS = [[50, 50], [60, 40], [70, 30], [75, 25]]
 
 interface Outcome {
   id: string
   label: string
   odds: number
+  isCreatorPick: boolean
 }
 
 const defaultOutcomes: Outcome[] = [
-  { id: '1', label: '', odds: 50 },
-  { id: '2', label: '', odds: 50 },
+  { id: '1', label: '', odds: 60, isCreatorPick: true },
+  { id: '2', label: '', odds: 40, isCreatorPick: false },
 ]
 
-// Given a show date string, return a datetime-local string defaulting to 7:00 PM that day
-function defaultShowtime(dateStr: string): string {
-  if (!dateStr) return ''
-  try {
-    const d = new Date(dateStr + 'T19:00:00')
-    const pad = (n: number) => String(n).padStart(2, '0')
-    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T19:00`
-  } catch {
-    return ''
-  }
+function adjustOdds(outcomes: Outcome[], id: string, delta: number): Outcome[] {
+  const idx = outcomes.findIndex((o) => o.id === id)
+  if (idx === -1) return outcomes
+  const newOdds = Math.max(5, Math.min(95, outcomes[idx].odds + delta))
+  const diff = newOdds - outcomes[idx].odds
+  return outcomes.map((o, i) =>
+    i === idx ? { ...o, odds: newOdds } : { ...o, odds: Math.max(5, o.odds - diff) }
+  )
 }
 
 export default function NewMarketPage() {
   const router = useRouter()
-  const [step, setStep] = useState<'show' | 'market'>('show')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
-  const [showSearch, setShowSearch] = useState('')
-  const [showResults, setShowResults] = useState<any[]>([])
-  const [searchLoading, setSearchLoading] = useState(false)
-  const [selectedShow, setSelectedShow] = useState<any | null>(null)
-  const [isManual, setIsManual] = useState(false)
-  const [manualShow, setManualShow] = useState({ artist: '', venue: '', city: '', date: '' })
+  // Section 1: The Show
+  const [artist, setArtist] = useState('')
+  const [customArtist, setCustomArtist] = useState('')
+  const [venue, setVenue] = useState('')
+  const [city, setCity] = useState('')
+  const [date, setDate] = useState('')
 
+  // Section 2: The Bet
   const [question, setQuestion] = useState('')
-  const [window, setWindow] = useState<'PRE_SHOW' | 'SET_BREAK' | 'BOTH'>('PRE_SHOW')
-  const [visibility, setVisibility] = useState<'PUBLIC' | 'PRIVATE'>('PUBLIC')
+  const [rules, setRules] = useState('')
+
+  // Section 3: Positions
   const [outcomes, setOutcomes] = useState<Outcome[]>(defaultOutcomes)
-  const [preShowClosesAt, setPreShowClosesAt] = useState('')
-  const [setBreakClosesAt, setSetBreakClosesAt] = useState('')
 
-  const searchShows = async (q: string) => {
-    setShowSearch(q)
-    if (q.length < 2) { setShowResults([]); return }
-    setSearchLoading(true)
-    const res = await fetch(`/api/shows?q=${encodeURIComponent(q)}&upcoming=true`)
-    const data = await res.json()
-    setShowResults(data.shows ?? [])
-    setSearchLoading(false)
-  }
+  // Section 4: Bet Amount
+  const [amountDollars, setAmountDollars] = useState('')
 
-  const selectShow = (show: any) => {
-    setSelectedShow(show)
-    // Auto-populate close time based on show date
-    const showDate = show.date ?? show.eventDate ?? ''
-    const defaultTime = defaultShowtime(showDate)
-    if (defaultTime) {
-      setPreShowClosesAt(defaultTime)
-      setSetBreakClosesAt(defaultTime)
-    }
-    setStep('market')
-  }
+  const effectiveArtist = artist === 'Other' ? customArtist : artist
+  const showValid = effectiveArtist.trim() && venue.trim() && city.trim() && date
+
+  const swapCreatorPick = () =>
+    setOutcomes((prev) => prev.map((o) => ({ ...o, isCreatorPick: !o.isCreatorPick })))
 
   const totalOdds = outcomes.reduce((s, o) => s + o.odds, 0)
   const oddsValid = totalOdds === 100
   const outcomesValid = outcomes.every((o) => o.label.trim().length > 0)
+  const amount = parseFloat(amountDollars)
+  const amountValid = !isNaN(amount) && amount >= 1
+
+  const canSubmit =
+    showValid &&
+    question.trim().length >= 5 &&
+    rules.trim().length >= 10 &&
+    oddsValid &&
+    outcomesValid &&
+    amountValid
+
+  const creatorOutcome = outcomes.find((o) => o.isCreatorPick)
+  const bettorOutcome = outcomes.find((o) => !o.isCreatorPick)
 
   const handleSubmit = async () => {
-    if (!oddsValid || !outcomesValid) return
+    if (!canSubmit || loading) return
     setLoading(true)
     setError('')
 
-    const body: any = {
+    const body = {
       question,
-      window,
-      visibility,
-      outcomes: outcomes.map(({ label, odds }) => ({ label, odds })),
-      preShowClosesAt: preShowClosesAt || undefined,
-      setBreakClosesAt: setBreakClosesAt || undefined,
-    }
-
-    if (isManual || selectedShow?.source === 'setlistfm') {
-      body.manualShow = isManual ? manualShow : {
-        artist: selectedShow.artist,
-        venue: selectedShow.venue,
-        city: selectedShow.city,
-        date: selectedShow.date,
-      }
-    } else {
-      body.showId = selectedShow?.id
+      rules,
+      visibility: 'PUBLIC',
+      amountDollars: amount,
+      outcomes: outcomes.map(({ label, odds, isCreatorPick }) => ({ label, odds, isCreatorPick })),
+      manualShow: { artist: effectiveArtist.trim(), venue: venue.trim(), city: city.trim(), date },
     }
 
     const res = await fetch('/api/markets', {
@@ -105,272 +107,268 @@ export default function NewMarketPage() {
       body: JSON.stringify(body),
     })
 
-    try {
-      if (res.ok) {
-        const { market } = await res.json()
-        router.push(`/market/${market.id}`)
-      } else {
-        const err = await res.json().catch(() => ({}))
-        const errMsg =
-          err.error?.formErrors?.[0] ??
-          Object.values(err.error?.fieldErrors ?? {}).flat()[0] ??
-          (typeof err.error === 'string' ? err.error : null) ??
-          'Something went sideways.'
-        setError(String(errMsg))
-        setLoading(false)
-      }
-    } catch {
-      setError('Something went sideways.')
+    if (res.ok) {
+      const { market } = await res.json()
+      router.push(`/market/${market.id}?new=1`)
+    } else {
+      const err = await res.json().catch(() => ({}))
+      const errMsg =
+        err.error?.formErrors?.[0] ??
+        Object.values(err.error?.fieldErrors ?? {}).flat()[0] ??
+        (typeof err.error === 'string' ? err.error : null) ??
+        'Something went sideways.'
+      setError(String(errMsg))
       setLoading(false)
     }
   }
 
   return (
-    <div className="space-y-5 animate-fade-in pb-10">
-      {/* Header with step indicator */}
-      <div className="flex items-start justify-between">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">Write the Line</h1>
-          <p className="text-white/40 text-sm mt-1">You set the odds. They call it.</p>
+    <div className="space-y-4 animate-fade-in pb-36">
+      <div>
+        <h1 className="text-2xl font-bold tracking-tight">Drop a Bet</h1>
+        <p className="text-white/40 text-sm mt-1">You set the line. They call it.</p>
+      </div>
+
+      {/* ── Section 1: The Show ─────────────────────────────────────── */}
+      <div className="gradient-border p-4 space-y-3">
+        <h2 className="text-xs font-bold uppercase tracking-widest text-white/40">The Show</h2>
+
+        {/* Artist dropdown */}
+        <div className="space-y-1">
+          <label className="text-xs text-white/50">Artist</label>
+          <select
+            value={artist}
+            onChange={(e) => setArtist(e.target.value)}
+            className="w-full bg-white/[0.06] border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white focus:outline-none focus:border-[#7C3AED]/50 transition-colors appearance-none"
+            style={{ colorScheme: 'dark' }}
+          >
+            <option value="" disabled>Select an artist…</option>
+            {ARTISTS.map((a) => (
+              <option key={a} value={a}>{a}</option>
+            ))}
+          </select>
         </div>
-        <div className="flex items-center gap-1.5 mt-1">
-          <div className={`w-6 h-1.5 rounded-full transition-colors ${step === 'show' ? 'bg-[#7C3AED]' : 'bg-[#7C3AED]/60'}`} />
-          <div className={`w-6 h-1.5 rounded-full transition-colors ${step === 'market' ? 'bg-[#7C3AED]' : 'bg-white/15'}`} />
+
+        {/* Custom artist if "Other" */}
+        {artist === 'Other' && (
+          <input
+            type="text"
+            value={customArtist}
+            onChange={(e) => setCustomArtist(e.target.value)}
+            placeholder="Artist name"
+            className="w-full bg-white/[0.06] border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white placeholder:text-white/25 focus:outline-none focus:border-[#7C3AED]/50 transition-colors"
+          />
+        )}
+
+        {/* Venue */}
+        <input
+          type="text"
+          value={venue}
+          onChange={(e) => setVenue(e.target.value)}
+          placeholder="Venue (e.g. Madison Square Garden)"
+          className="w-full bg-white/[0.06] border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white placeholder:text-white/25 focus:outline-none focus:border-[#7C3AED]/50 transition-colors"
+        />
+
+        {/* City */}
+        <input
+          type="text"
+          value={city}
+          onChange={(e) => setCity(e.target.value)}
+          placeholder="City (e.g. New York, NY)"
+          className="w-full bg-white/[0.06] border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white placeholder:text-white/25 focus:outline-none focus:border-[#7C3AED]/50 transition-colors"
+        />
+
+        {/* Date */}
+        <input
+          type="date"
+          value={date}
+          onChange={(e) => setDate(e.target.value)}
+          className="w-full bg-white/[0.06] border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white focus:outline-none focus:border-[#7C3AED]/50 transition-colors"
+          style={{ colorScheme: 'dark' }}
+        />
+      </div>
+
+      {/* ── Section 2: The Bet ──────────────────────────────────────── */}
+      <div className="gradient-border p-4 space-y-4">
+        <h2 className="text-xs font-bold uppercase tracking-widest text-white/40">The Bet</h2>
+
+        {/* Question */}
+        <div className="space-y-1.5">
+          <label className="text-xs text-white/50">The question</label>
+          <textarea
+            value={question}
+            onChange={(e) => setQuestion(e.target.value)}
+            placeholder="Will they open with Tweezer? Does Set 2 go over 90 min?"
+            rows={2}
+            maxLength={280}
+            className="w-full bg-white/[0.06] border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white placeholder:text-white/20 focus:outline-none focus:border-[#7C3AED]/50 transition-colors resize-none leading-relaxed"
+          />
+          <div
+            className="text-right text-xs transition-colors"
+            style={{ color: question.length > 240 ? '#F59E0B' : 'rgba(255,255,255,0.2)' }}
+          >
+            {question.length}/280
+          </div>
+        </div>
+
+        {/* Rules */}
+        <div className="space-y-1.5">
+          <label className="text-xs text-white/50">Rules &amp; resolution criteria</label>
+          <textarea
+            value={rules}
+            onChange={(e) => setRules(e.target.value)}
+            placeholder="Do teases count? What's the source of truth? Think about how this bet may resolve."
+            rows={3}
+            maxLength={500}
+            className="w-full bg-white/[0.06] border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white placeholder:text-white/20 focus:outline-none focus:border-[#7C3AED]/50 transition-colors resize-none leading-relaxed"
+          />
         </div>
       </div>
 
-      {/* Step 1: Show picker */}
-      {step === 'show' && (
-        <div className="space-y-3">
-          <div className="gradient-border p-4 space-y-4">
-            <div>
-              <h2 className="font-semibold text-xs text-white/50 uppercase tracking-wider">Step 1 of 2 — Pick a show</h2>
-            </div>
+      {/* ── Section 3: Your Position ────────────────────────────────── */}
+      <div className="gradient-border p-4 space-y-4">
+        <div>
+          <h2 className="text-xs font-bold uppercase tracking-widest text-white/40">Your Position</h2>
+          <p className="text-xs text-white/25 mt-0.5">Set your confidence. The taker gets the other side.</p>
+        </div>
 
-            {!isManual ? (
-              <>
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/30" />
-                  <input
-                    type="text"
-                    value={showSearch}
-                    onChange={(e) => searchShows(e.target.value)}
-                    placeholder="Search Phish, Dead & Co, Goose..."
-                    className="w-full bg-white/[0.06] border border-white/10 rounded-lg pl-9 pr-4 py-2.5 text-sm text-white placeholder:text-white/25 focus:outline-none focus:border-[#7C3AED]/50 transition-colors"
-                    autoFocus
-                  />
-                </div>
-
-                {searchLoading && (
-                  <p className="text-xs text-white/30 text-center py-2">Searching...</p>
-                )}
-
-                {!searchLoading && showSearch.length >= 2 && showResults.length === 0 && (
-                  <p className="text-xs text-white/30 text-center py-2">
-                    No shows found.{' '}
-                    <button type="button" onClick={() => setIsManual(true)} className="text-[#7C3AED] hover:text-[#7C3AED]/80 underline transition-colors">
-                      Enter it manually
-                    </button>
-                  </p>
-                )}
-
-                {showResults.length > 0 && (
-                  <div className="space-y-1.5">
-                    {showResults.map((show, i) => (
-                      <button
-                        key={show.id ?? i}
-                        type="button"
-                        onClick={() => selectShow(show)}
-                        className="w-full text-left p-3 rounded-lg bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.06] hover:border-white/10 transition-colors"
-                      >
-                        <p className="font-semibold text-sm">{show.artist}</p>
-                        <p className="text-xs text-white/40">{show.venue} · {show.city} · {show.date}</p>
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </>
-            ) : (
-              <div className="space-y-3">
-                {[
-                  { key: 'artist', placeholder: 'Artist (e.g. Phish)' },
-                  { key: 'venue', placeholder: 'Venue (e.g. Madison Square Garden)' },
-                  { key: 'city', placeholder: 'City (e.g. New York, NY)' },
-                ].map(({ key, placeholder }) => (
-                  <input
-                    key={key}
-                    type="text"
-                    value={manualShow[key as keyof typeof manualShow]}
-                    onChange={(e) => setManualShow((p) => ({ ...p, [key]: e.target.value }))}
-                    placeholder={placeholder}
-                    className="w-full bg-white/[0.06] border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white placeholder:text-white/25 focus:outline-none focus:border-[#7C3AED]/50 transition-colors"
-                  />
-                ))}
-                <input
-                  type="date"
-                  value={manualShow.date}
-                  onChange={(e) => setManualShow((p) => ({ ...p, date: e.target.value }))}
-                  className="w-full bg-white/[0.06] border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white focus:outline-none focus:border-[#7C3AED]/50 transition-colors"
-                />
-              </div>
-            )}
-          </div>
-
-          {/* Manual entry CTA — more prominent, outside the card */}
-          {!isManual ? (
-            <button
-              type="button"
-              onClick={() => setIsManual(true)}
-              className="w-full py-2.5 rounded-lg border border-white/10 text-sm text-white/50 hover:text-white/80 hover:border-white/20 transition-colors"
-            >
-              Can't find it? Enter show manually →
-            </button>
-          ) : (
-            <div className="flex items-center justify-between px-1">
+        {/* Quick splits — only way to set odds */}
+        <div className="flex gap-2 flex-wrap items-center">
+          <span className="text-xs text-white/25">Confidence:</span>
+          {PRESETS.map((p, i) => {
+            const creatorOdds = outcomes.find((o) => o.isCreatorPick)?.odds
+            const active = creatorOdds === p[0]
+            return (
               <button
-                type="button"
-                onClick={() => setIsManual(false)}
-                className="text-sm text-white/30 hover:text-white/60 transition-colors"
-              >
-                ← Search instead
-              </button>
-              <button
+                key={i}
                 type="button"
                 onClick={() => {
-                  if (manualShow.artist && manualShow.venue && manualShow.city && manualShow.date) {
-                    const show = { ...manualShow, id: null }
-                    selectShow(show)
-                  }
+                  setOutcomes((prev) => {
+                    const creatorIdx = prev.findIndex((o) => o.isCreatorPick)
+                    return prev.map((o, idx) => ({
+                      ...o,
+                      odds: idx === creatorIdx ? p[0] : p[1],
+                    }))
+                  })
                 }}
-                disabled={!manualShow.artist || !manualShow.venue || !manualShow.city || !manualShow.date}
-                className="text-sm font-semibold text-[#7C3AED] hover:text-[#7C3AED]/80 disabled:opacity-40 transition-colors"
+                className={`text-xs px-3 py-1.5 rounded-full border transition-colors ${
+                  active
+                    ? 'border-[#7C3AED]/50 bg-[#7C3AED]/15 text-white/80'
+                    : 'border-white/10 text-white/35 hover:border-white/20 hover:text-white/60'
+                }`}
               >
-                Continue →
+                {p[0]}/{p[1]}
               </button>
-            </div>
-          )}
+            )
+          })}
         </div>
-      )}
 
-      {/* Step 2: Market details */}
-      {step === 'market' && selectedShow && (
-        <div className="space-y-4">
-          {/* Selected show — tap to change */}
-          <button
-            onClick={() => setStep('show')}
-            className="w-full gradient-border p-3 flex items-center justify-between text-left group"
-          >
-            <div>
-              <p className="text-[10px] text-white/30 uppercase tracking-wider font-semibold mb-0.5">Step 2 of 2 — {selectedShow.artist}</p>
-              <p className="text-sm font-semibold text-white">{selectedShow.venue} · {selectedShow.city}</p>
-            </div>
-            <span className="text-xs text-white/30 group-hover:text-white/60 transition-colors">Change</span>
-          </button>
-
-          {/* Question */}
-          <div className="gradient-border p-4 space-y-2">
-            <label className="text-xs font-semibold text-white/50 uppercase tracking-wider">The Question</label>
-            <textarea
-              value={question}
-              onChange={(e) => setQuestion(e.target.value)}
-              placeholder="Will they open with Tweezer? Does Set 2 go over 90 min? Bust-out incoming?"
-              rows={3}
-              className="w-full bg-transparent text-sm text-white placeholder:text-white/20 focus:outline-none resize-none leading-relaxed"
-              maxLength={280}
-              autoFocus
-            />
-            <div className="text-xs text-right transition-colors" style={{ color: question.length > 250 ? '#F59E0B' : 'rgba(255,255,255,0.2)' }}>
-              {question.length}/280
-            </div>
-          </div>
-
-          {/* Odds */}
-          <div className="gradient-border p-4 space-y-3">
-            <div>
-              <label className="text-xs font-semibold text-white/50 uppercase tracking-wider">The Odds</label>
-              <p className="text-xs text-white/30 mt-0.5">You're the oddsmaker. Hit +/− to adjust the split.</p>
-            </div>
-            <OddsBuilder value={outcomes} onChange={setOutcomes} />
-          </div>
-
-          {/* Closing window */}
-          <div className="gradient-border p-4 space-y-3">
-            <label className="text-xs font-semibold text-white/50 uppercase tracking-wider">When does it close?</label>
-            <div className="grid grid-cols-3 gap-2">
-              {(['PRE_SHOW', 'SET_BREAK', 'BOTH'] as const).map((w) => {
-                const labels = { PRE_SHOW: 'Pre-show', SET_BREAK: 'Set break', BOTH: 'Both' }
-                const descs = { PRE_SHOW: 'Closes at doors', SET_BREAK: 'Open at intermission', BOTH: 'Both windows' }
-                return (
-                  <button
-                    key={w}
-                    type="button"
-                    onClick={() => setWindow(w)}
-                    className={`p-2.5 rounded-lg border text-left transition-colors ${
-                      window === w
-                        ? 'bg-[#7C3AED]/20 border-[#7C3AED]/40 text-white'
-                        : 'bg-white/[0.04] border-white/[0.08] text-white/50 hover:border-white/20'
-                    }`}
-                  >
-                    <p className="text-xs font-semibold">{labels[w]}</p>
-                    <p className="text-[10px] mt-0.5 text-white/40">{descs[w]}</p>
-                  </button>
-                )
-              })}
-            </div>
-            {(window === 'PRE_SHOW' || window === 'BOTH') && (
-              <div>
-                <label className="text-[11px] text-white/40">Closes at (pre-show)</label>
-                <input type="datetime-local" value={preShowClosesAt} onChange={(e) => setPreShowClosesAt(e.target.value)}
-                  className="mt-1 w-full bg-white/[0.06] border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-[#7C3AED]/50 transition-colors" />
+        {/* Outcome rows */}
+        <div className="space-y-3">
+          {outcomes.map((outcome) => (
+            <div key={outcome.id} className="flex items-stretch gap-3">
+              {/* Label + input container */}
+              <div className="flex-1 rounded-xl border border-white/10 bg-white/[0.04] px-3 py-3 space-y-1.5">
+                <span className={`text-[9px] font-bold uppercase tracking-widest ${
+                  outcome.isCreatorPick ? 'text-[#7C3AED]/70' : 'text-white/30'
+                }`}>
+                  {outcome.isCreatorPick ? 'My Call' : 'Taker Gets'}
+                </span>
+                <input
+                  type="text"
+                  value={outcome.label}
+                  onChange={(e) =>
+                    setOutcomes((prev) =>
+                      prev.map((o) => o.id === outcome.id ? { ...o, label: e.target.value } : o)
+                    )
+                  }
+                  placeholder={
+                    outcome.isCreatorPick
+                      ? 'e.g. Yes, they open with Tweezer'
+                      : "e.g. No, they don't"
+                  }
+                  className="w-full bg-transparent text-sm text-white placeholder:text-white/20 focus:outline-none"
+                />
               </div>
-            )}
-            {(window === 'SET_BREAK' || window === 'BOTH') && (
-              <div>
-                <label className="text-[11px] text-white/40">Closes at (set break)</label>
-                <input type="datetime-local" value={setBreakClosesAt} onChange={(e) => setSetBreakClosesAt(e.target.value)}
-                  className="mt-1 w-full bg-white/[0.06] border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-[#7C3AED]/50 transition-colors" />
-              </div>
-            )}
-          </div>
 
-          {/* Visibility */}
-          <div className="gradient-border p-4 space-y-2">
-            <label className="text-xs font-semibold text-white/50 uppercase tracking-wider">Who can see it?</label>
-            <div className="grid grid-cols-2 gap-2">
-              {([
-                { v: 'PUBLIC' as const, Icon: Globe, label: 'Public', desc: 'Appears in the global feed' },
-                { v: 'PRIVATE' as const, Icon: Lock, label: 'Private', desc: 'Share a link to invite' },
-              ]).map(({ v, Icon, label, desc }) => (
-                <button key={v} type="button" onClick={() => setVisibility(v)}
-                  className={`p-3 rounded-lg border text-left transition-colors ${
-                    visibility === v
-                      ? 'bg-[#7C3AED]/20 border-[#7C3AED]/40 text-white'
-                      : 'bg-white/[0.04] border-white/[0.08] text-white/50 hover:border-white/20'
-                  }`}
+              {/* Odds stepper — flex column, centered on the row height */}
+              <div className="flex flex-col items-center justify-center gap-1 flex-shrink-0 w-10">
+                <button
+                  type="button"
+                  onClick={() => setOutcomes((prev) => adjustOdds(prev, outcome.id, 5))}
+                  className="w-8 h-8 rounded-lg bg-white/[0.06] border border-white/10 flex items-center justify-center text-white/50 hover:text-white hover:border-white/25 transition-colors text-base leading-none"
                 >
-                  <div className="flex items-center gap-1.5 mb-0.5">
-                    <Icon className="w-3.5 h-3.5" />
-                    <p className="text-sm font-semibold">{label}</p>
-                  </div>
-                  <p className="text-[11px] text-white/40">{desc}</p>
+                  +
                 </button>
-              ))}
+                <span className={`text-xs font-mono font-bold tabular-nums text-center w-full ${
+                  outcome.isCreatorPick ? 'text-[#7C3AED]/80' : 'text-white/40'
+                }`}>
+                  {outcome.odds}%
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setOutcomes((prev) => adjustOdds(prev, outcome.id, -5))}
+                  className="w-8 h-8 rounded-lg bg-white/[0.06] border border-white/10 flex items-center justify-center text-white/50 hover:text-white hover:border-white/25 transition-colors text-base leading-none"
+                >
+                  −
+                </button>
+              </div>
             </div>
-          </div>
+          ))}
+        </div>
+      </div>
 
-          {error && <p className="text-[#F43F5E] text-sm">{error}</p>}
+      {/* ── Section 4: Bet Amount ────────────────────────────────────── */}
+      <div className="gradient-border p-4 space-y-3">
+        <h2 className="text-xs font-bold uppercase tracking-widest text-white/40">Bet Amount</h2>
+        <div className="relative">
+          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-white/40 text-sm select-none">$</span>
+          <input
+            type="number"
+            value={amountDollars}
+            onChange={(e) => setAmountDollars(e.target.value)}
+            placeholder="20"
+            min="1"
+            className="w-full bg-white/[0.06] border border-white/10 rounded-lg pl-6 pr-3 py-2.5 text-sm text-white placeholder:text-white/20 focus:outline-none focus:border-[#7C3AED]/50 transition-colors"
+          />
+        </div>
+        <p className="text-[11px] text-white/25">Both sides put up this amount. Winner collects from loser via Venmo.</p>
+      </div>
 
+      {error && <p className="text-[#F43F5E] text-sm px-1">{error}</p>}
+
+      {/* ── Sticky footer — DraftKings style ───────────────────────── */}
+      <div className="fixed bottom-[64px] left-0 right-0 max-w-lg mx-auto">
+        <div className="bg-[#131110] border-t border-white/[0.10] px-4 pt-3 pb-4 space-y-2">
           <button
             type="button"
             onClick={handleSubmit}
-            disabled={!oddsValid || !outcomesValid || !question.trim() || loading}
-            className="w-full py-3.5 rounded-xl font-bold text-sm text-white disabled:opacity-40 disabled:cursor-not-allowed hover:opacity-90 transition-opacity glow-purple"
-            style={{background: 'linear-gradient(135deg, #7C3AED, #4F46E5)'}}
+            disabled={!canSubmit || loading}
+            className="w-full py-3.5 rounded-xl font-bold text-sm text-white disabled:opacity-40 disabled:cursor-not-allowed hover:opacity-90 transition-opacity"
+            style={{ background: canSubmit ? 'linear-gradient(135deg, #7C3AED, #10B981)' : 'rgba(255,255,255,0.1)' }}
           >
-            {loading ? 'Posting...' : 'Post the Line →'}
+            {loading ? 'Dropping…' : 'Drop It →'}
           </button>
+
+          {amountValid && creatorOutcome && bettorOutcome ? (
+            <div className="flex items-center justify-center gap-4 text-xs text-white/40">
+              <span>
+                You stake:{' '}
+                <span className="text-white/70 font-semibold">${amount.toFixed(2)}</span>
+              </span>
+              <span className="text-white/20">·</span>
+              <span>
+                To win:{' '}
+                <span className="text-[#10B981] font-semibold">
+                  ${(amount * (bettorOutcome.odds / creatorOutcome.odds)).toFixed(2)}
+                </span>
+              </span>
+            </div>
+          ) : (
+            <p className="text-center text-[11px] text-white/20">Fill in all fields to drop your bet</p>
+          )}
         </div>
-      )}
+      </div>
     </div>
   )
 }

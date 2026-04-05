@@ -1,17 +1,37 @@
 import { prisma } from '@/lib/prisma'
 import { MarketCard } from '@/components/market-card'
-import { formatShowDate } from '@/lib/utils'
 
 async function getMarkets(artist?: string) {
-  const where: any = { visibility: 'PUBLIC' }
-  if (artist) where.show = { artist: { contains: artist, mode: 'insensitive' } }
+  const where: any = {
+    visibility: 'PUBLIC',
+    status: { not: 'DISPUTED' }, // keep disputes off the feed
+  }
+  if (artist && artist !== 'Other') {
+    where.show = { artist: { contains: artist, mode: 'insensitive' } }
+  } else if (artist === 'Other') {
+    // "Other" = any artist not in the main list
+    const MAIN_ARTISTS = [
+      'Phish', 'Goose', 'Widespread Panic', 'Billy Strings', 'moe.',
+      "Umphrey's McGee", 'String Cheese Incident', 'Eggy',
+      'Dave Matthews Band', 'King Gizzard and the Lizard Wizard', 'Spafford',
+    ]
+    where.show = { artist: { notIn: MAIN_ARTISTS } }
+  }
 
   return prisma.market.findMany({
     where,
-    orderBy: [{ bets: { _count: 'desc' } }, { createdAt: 'desc' }],
+    orderBy: [{ createdAt: 'desc' }],
     include: {
       show: true,
-      creator: { select: { id: true, name: true, image: true, username: true } },
+      creator: {
+        select: {
+          id: true,
+          name: true,
+          image: true,
+          username: true,
+          ratingsReceived: { select: { stars: true } },
+        },
+      },
       outcomes: { orderBy: { odds: 'desc' } },
       _count: { select: { bets: true } },
     },
@@ -19,7 +39,20 @@ async function getMarkets(artist?: string) {
   })
 }
 
-const JAM_BANDS = ['Phish', 'Dead & Co', 'Goose', 'Widespread Panic', 'Billy Strings', "Trey Anastasio", "moe.", "Umphrey's McGee"]
+const JAM_BANDS = [
+  'Phish',
+  'Goose',
+  'Widespread Panic',
+  'Billy Strings',
+  'moe.',
+  "Umphrey's McGee",
+  'String Cheese Incident',
+  'Eggy',
+  'Dave Matthews Band',
+  'King Gizzard and the Lizard Wizard',
+  'Spafford',
+  'Other',
+]
 
 export default async function FeedPage({
   searchParams,
@@ -28,26 +61,10 @@ export default async function FeedPage({
 }) {
   const markets = await getMarkets(searchParams.artist)
 
-  const byShow = markets.reduce<Record<string, typeof markets>>((acc, m) => {
-    const key = m.showId
-    if (!acc[key]) acc[key] = []
-    acc[key].push(m)
-    return acc
-  }, {})
-
-  const showGroups = Object.values(byShow).sort((a, b) =>
-    new Date(a[0].show.date).getTime() - new Date(b[0].show.date).getTime()
-  )
-
   return (
-    <div className="space-y-6 animate-fade-in">
-      <div className="relative py-4">
-        <h1 className="text-2xl font-bold tracking-tight">Tonight's Board</h1>
-        <p className="text-white/40 text-sm mt-1">The rail is open. What's your read?</p>
-      </div>
-
+    <div className="space-y-4 animate-fade-in">
       {/* Band filters */}
-      <div className="flex gap-2 overflow-x-auto pb-1 -mx-4 px-4" style={{scrollbarWidth: 'none'}}>
+      <div className="flex gap-2 overflow-x-auto pb-1 -mx-4 px-4 pt-1" style={{ scrollbarWidth: 'none' }}>
         <a
           href="/feed"
           className={`flex-shrink-0 text-xs font-semibold px-3 py-1.5 rounded-full border transition-colors ${
@@ -56,7 +73,7 @@ export default async function FeedPage({
               : 'border-white/10 text-white/40 hover:border-white/20 hover:text-white/70'
           }`}
         >
-          All Shows
+          All
         </a>
         {JAM_BANDS.map((band) => (
           <a
@@ -73,37 +90,21 @@ export default async function FeedPage({
         ))}
       </div>
 
-      {showGroups.length === 0 ? (
+      {markets.length === 0 ? (
         <div className="text-center py-16 space-y-3">
           <p className="text-4xl">🎸</p>
-          <p className="text-white/60 font-medium">Nothing on the rail yet.</p>
-          <p className="text-white/30 text-sm">Be the first to write a line.</p>
+          <p className="text-white/60 font-medium">Nothing on the lot yet.</p>
+          <p className="text-white/30 text-sm">Be the first to drop a bet.</p>
           <a href="/market/new" className="inline-block mt-2 text-sm font-semibold text-[#7C3AED]">
-            Write the Line →
+            Drop a Bet →
           </a>
         </div>
       ) : (
-        showGroups.map((group) => {
-          const show = group[0].show
-          return (
-            <div key={show.id} className="space-y-2">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h2 className="font-bold text-base">{show.artist}</h2>
-                  <p className="text-xs text-white/40">
-                    {show.venue} · {show.city} · {formatShowDate(show.date)}
-                  </p>
-                </div>
-                <span className="text-xs text-white/25">{group.length} market{group.length !== 1 ? 's' : ''}</span>
-              </div>
-              <div className="space-y-2">
-                {group.map((market) => (
-                  <MarketCard key={market.id} market={market as any} />
-                ))}
-              </div>
-            </div>
-          )
-        })
+        <div className="flex flex-col" style={{ gap: '8px' }}>
+          {markets.map((market) => (
+            <MarketCard key={market.id} market={market as any} />
+          ))}
+        </div>
       )}
     </div>
   )

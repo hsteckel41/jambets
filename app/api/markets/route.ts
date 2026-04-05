@@ -39,6 +39,14 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
+  const creator = await prisma.user.findUnique({
+    where: { id: session.user.id },
+    select: { venmoUsername: true },
+  })
+  if (!creator?.venmoUsername) {
+    return NextResponse.json({ error: 'venmo_required', message: 'Add your Venmo handle on your profile before dropping a bet.' }, { status: 400 })
+  }
+
   const body = await req.json()
   const parsed = createMarketSchema.safeParse(body)
   if (!parsed.success) {
@@ -48,6 +56,8 @@ export async function POST(req: NextRequest) {
   const data = parsed.data
 
   let showId = data.showId
+  let showDate: Date | null = null
+
   if (!showId && data.manualShow) {
     const show = await prisma.show.create({
       data: {
@@ -58,10 +68,21 @@ export async function POST(req: NextRequest) {
       },
     })
     showId = show.id
+    showDate = show.date
+  } else if (showId) {
+    const show = await prisma.show.findUnique({ where: { id: showId }, select: { date: true } })
+    showDate = show?.date ?? null
   }
 
   if (!showId) {
     return NextResponse.json({ error: 'Show is required' }, { status: 400 })
+  }
+
+  // Compute expiresAt: show date + 1 day at 08:00 UTC
+  let expiresAt: Date | null = null
+  if (showDate) {
+    const d = new Date(showDate)
+    expiresAt = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() + 1, 8, 0, 0))
   }
 
   try {
@@ -70,14 +91,15 @@ export async function POST(req: NextRequest) {
         showId,
         creatorId: session.user.id,
         question: data.question,
-        window: data.window,
+        rules: data.rules,
         visibility: data.visibility,
-        preShowClosesAt: data.preShowClosesAt ? new Date(data.preShowClosesAt) : null,
-        setBreakClosesAt: data.setBreakClosesAt ? new Date(data.setBreakClosesAt) : null,
+        amountDollars: data.amountDollars ?? null,
+        expiresAt,
         outcomes: {
           create: data.outcomes.map((o) => ({
             label: o.label,
             odds: o.odds,
+            isCreatorPick: o.isCreatorPick,
           })),
         },
       },

@@ -46,6 +46,9 @@ model User {
   createdMarkets   Market[]  @relation("MarketCreator")
   placedBets       Bet[]     @relation("BetBettor")
   resultSubmissions ResultSubmission[]
+  ratingsGiven     UserRating[] @relation("RatingFrom")
+  ratingsReceived  UserRating[] @relation("RatingTo")
+  disputeMessages  DisputeMessage[]
   createdAt        DateTime  @default(now())
 }
 
@@ -83,30 +86,24 @@ enum ShowStatus {
 }
 
 model Market {
-  id                 String       @id @default(cuid())
-  showId             String
-  creatorId          String
-  bettorId           String?
-  question           String
-  window             MarketWindow
-  visibility         Visibility   @default(PUBLIC)
-  status             MarketStatus @default(OPEN)
-  preShowClosesAt    DateTime?
-  setBreakClosesAt   DateTime?
-  show               Show         @relation(fields: [showId], references: [id])
-  creator            User         @relation("MarketCreator", fields: [creatorId], references: [id])
-  outcomes           Outcome[]
-  bets               Bet[]
-  createdAt          DateTime     @default(now())
+  id            String       @id @default(cuid())
+  showId        String
+  creatorId     String
+  bettorId      String?
+  question      String
+  rules         String
+  visibility    Visibility   @default(PUBLIC)
+  status        MarketStatus @default(OPEN)
+  amountDollars Decimal?     @db.Decimal(10, 2)
+  expiresAt     DateTime?
+  show          Show         @relation(fields: [showId], references: [id])
+  creator       User         @relation("MarketCreator", fields: [creatorId], references: [id])
+  outcomes      Outcome[]
+  bets          Bet[]
+  createdAt     DateTime     @default(now())
   @@index([showId])
   @@index([status])
   @@index([visibility, status])
-}
-
-enum MarketWindow {
-  PRE_SHOW
-  SET_BREAK
-  BOTH
 }
 
 enum Visibility {
@@ -124,12 +121,13 @@ enum MarketStatus {
 }
 
 model Outcome {
-  id       String  @id @default(cuid())
-  marketId String
-  label    String
-  odds     Int
-  market   Market  @relation(fields: [marketId], references: [id], onDelete: Cascade)
-  bets     Bet[]
+  id            String  @id @default(cuid())
+  marketId      String
+  label         String
+  odds          Int
+  isCreatorPick Boolean @default(false)
+  market        Market  @relation(fields: [marketId], references: [id], onDelete: Cascade)
+  bets          Bet[]
   @@index([marketId])
 }
 
@@ -146,6 +144,7 @@ model Bet {
   outcome         Outcome   @relation(fields: [outcomeId], references: [id])
   submissions     ResultSubmission[]
   dispute         Dispute?
+  ratings         UserRating[]
   createdAt       DateTime  @default(now())
   @@unique([marketId, bettorId])
   @@index([bettorId])
@@ -184,7 +183,35 @@ model Dispute {
   resolution DisputeResolution?
   resolvedAt DateTime?
   bet        Bet                @relation(fields: [betId], references: [id])
+  messages   DisputeMessage[]
   createdAt  DateTime           @default(now())
+}
+
+model UserRating {
+  id         String   @id @default(cuid())
+  fromUserId String
+  toUserId   String
+  betId      String
+  stars      Int
+  review     String?  @db.VarChar(280)
+  createdAt  DateTime @default(now())
+
+  from User @relation("RatingFrom", fields: [fromUserId], references: [id])
+  to   User @relation("RatingTo",   fields: [toUserId],   references: [id])
+  bet  Bet  @relation(fields: [betId], references: [id])
+
+  @@unique([fromUserId, betId])
+}
+
+model DisputeMessage {
+  id        String   @id @default(cuid())
+  disputeId String
+  userId    String
+  message   String   @db.VarChar(500)
+  createdAt DateTime @default(now())
+
+  dispute Dispute @relation(fields: [disputeId], references: [id])
+  user    User    @relation(fields: [userId], references: [id])
 }
 
 enum DisputeReason {

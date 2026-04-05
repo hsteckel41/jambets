@@ -30,3 +30,18 @@ Available gstack skills:
 - `/guard` — guard mode
 - `/unfreeze` — unfreeze deploys
 - `/gstack-upgrade` — upgrade gstack
+
+## Design System
+Always read DESIGN.md before making any visual or UI decisions.
+All font choices, colors, spacing, border-radius, and aesthetic direction are defined there.
+Do not deviate without explicit user approval.
+In QA mode, flag any code that doesn't match DESIGN.md.
+
+Key tokens to remember:
+- Primary accent: `#7C3AED` (violet)
+- Secondary: `#10B981` (emerald)
+- Background: `#0C0A07` (warm near-black)
+- Text: `#EDE7D4` (cream)
+- Display font: Fraunces italic
+- Body font: DM Sans
+- Data/mono font: Geist Mono

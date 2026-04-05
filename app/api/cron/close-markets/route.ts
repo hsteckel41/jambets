@@ -9,24 +9,37 @@ export async function POST(req: NextRequest) {
 
   const now = new Date()
 
-  const preShowClosed = await prisma.market.updateMany({
+  // OPEN markets past expiresAt with no bettor → VOIDED (no one took it)
+  const voided = await prisma.market.updateMany({
     where: {
       status: 'OPEN',
-      window: { in: ['PRE_SHOW', 'BOTH'] },
-      preShowClosesAt: { lte: now },
+      expiresAt: { lte: now },
+      bettorId: null,
     },
-    data: { status: 'CLOSED' },
+    data: { status: 'VOIDED' },
   })
 
-  const setBreakClosed = await prisma.market.updateMany({
+  // OPEN markets past expiresAt with a bettor → PENDING_RESULT (show ended, time to submit)
+  const pendingResult = await prisma.market.updateMany({
     where: {
       status: 'OPEN',
-      window: { in: ['SET_BREAK', 'BOTH'] },
-      setBreakClosesAt: { lte: now },
+      expiresAt: { lte: now },
+      bettorId: { not: null },
     },
-    data: { status: 'CLOSED' },
+    data: { status: 'PENDING_RESULT' },
   })
 
+  // Also close CLOSED markets that have passed expiresAt → PENDING_RESULT
+  const closedToPending = await prisma.market.updateMany({
+    where: {
+      status: 'CLOSED',
+      expiresAt: { lte: now },
+      bettorId: { not: null },
+    },
+    data: { status: 'PENDING_RESULT' },
+  })
+
+  // Dispute timeout: disputes open for more than 24h → VOID
   const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000)
   const timedOutDisputes = await prisma.dispute.findMany({
     where: { status: 'OPEN', createdAt: { lte: oneDayAgo } },
@@ -44,11 +57,13 @@ export async function POST(req: NextRequest) {
     ])
   }
 
-  console.log(`[cron/close-markets] pre_show: ${preShowClosed.count}, set_break: ${setBreakClosed.count}, voided: ${timedOutDisputes.length}`)
+  console.log(
+    `[cron/close-markets] voided: ${voided.count}, pending_result: ${pendingResult.count + closedToPending.count}, disputes_voided: ${timedOutDisputes.length}`
+  )
 
   return NextResponse.json({
-    preShowClosed: preShowClosed.count,
-    setBreakClosed: setBreakClosed.count,
+    voided: voided.count,
+    pendingResult: pendingResult.count + closedToPending.count,
     disputesVoided: timedOutDisputes.length,
   })
 }
