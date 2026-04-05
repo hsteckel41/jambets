@@ -16,3 +16,4 @@ npm-debug.log*
 # local IDE
 .DS_Store
 .gstack/
+tsconfig.tsbuildinfo
