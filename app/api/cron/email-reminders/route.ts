@@ -2,9 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { Resend } from 'resend'
 
-const resend = new Resend(process.env.RESEND_API_KEY)
-
 export async function POST(req: NextRequest) {
+  const resend = new Resend(process.env.RESEND_API_KEY)
   const secret = req.headers.get('x-cron-secret')
   if (secret !== process.env.CRON_SECRET) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
