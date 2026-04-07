@@ -94,12 +94,21 @@ export function MarketCard({ market }: MarketCardProps) {
                 <p className="text-sm font-bold text-white leading-snug">{bettorOutcome.label}</p>
               </div>
               <div className="text-right flex-shrink-0 ml-3">
-                <p className={`text-lg font-black font-mono tabular-nums ${isOpen ? 'text-[#10B981]' : 'text-white/40'}`}>
-                  {bettorOutcome.odds}%
-                </p>
-                {takerStake !== null && creatorStake !== null && (
-                  <p className="text-[10px] text-white/30 font-mono">
-                    risk ${takerStake.toFixed(0)} · win ${creatorStake.toFixed(0)}
+                {takerStake !== null && creatorStake !== null ? (
+                  <>
+                    <p className={`text-[10px] font-bold uppercase tracking-widest mb-0.5 ${isOpen ? 'text-[#10B981]/50' : 'text-white/20'}`}>
+                      win
+                    </p>
+                    <p className={`text-2xl font-black font-mono tabular-nums leading-none ${isOpen ? 'text-[#10B981]' : 'text-white/40'}`}>
+                      ${creatorStake.toFixed(0)}
+                    </p>
+                    <p className="text-[10px] text-white/25 font-mono mt-0.5">
+                      {bettorOutcome.odds}% · risk ${takerStake.toFixed(0)}
+                    </p>
+                  </>
+                ) : (
+                  <p className={`text-lg font-black font-mono tabular-nums ${isOpen ? 'text-[#10B981]' : 'text-white/40'}`}>
+                    {bettorOutcome.odds}%
                   </p>
                 )}
               </div>
