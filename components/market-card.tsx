@@ -102,8 +102,11 @@ export function MarketCard({ market }: MarketCardProps) {
                     <p className={`text-xl font-black font-mono tabular-nums leading-none ${isOpen ? 'text-[#10B981]' : 'text-white/40'}`}>
                       ${creatorStake.toFixed(0)}
                     </p>
-                    <p className="text-[10px] text-white/35 font-mono mt-0.5">
-                      {bettorOutcome.odds}% · risk ${takerStake.toFixed(0)}
+                    <p className="text-xs font-semibold font-mono text-white/55 mt-1.5">
+                      risk ${takerStake.toFixed(0)}
+                    </p>
+                    <p className="text-[10px] text-white/25 font-mono mt-0.5">
+                      {bettorOutcome.odds}%
                     </p>
                   </>
                 ) : (
