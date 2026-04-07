@@ -39,8 +39,9 @@ model User {
   emailVerified    DateTime?
   image            String?
   username         String?   @unique
-  venmoUsername    String?
-  reputationScore  Int       @default(100)
+  venmoUsername       String?
+  hasSeenOnboarding   Boolean   @default(false)
+  reputationScore     Int       @default(100)
   accounts         Account[]
   sessions         Session[]
   createdMarkets   Market[]  @relation("MarketCreator")

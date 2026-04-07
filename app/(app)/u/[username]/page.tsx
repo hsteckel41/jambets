@@ -260,7 +260,7 @@ export default async function UserProfilePage({ params }: { params: { username: 
           <p className="text-white/60 font-medium">No action yet.</p>
           {isOwn && (
             <>
-              <p className="text-white/30 text-sm">Drop a bet or take someone&rsquo;s line.</p>
+              <p className="text-white/30 text-sm">Create a bet or take someone&rsquo;s line.</p>
               <Link href="/feed" className="inline-block mt-2 text-sm font-semibold text-[#7C3AED]">
                 Back to the Board →
               </Link>

@@ -103,6 +103,24 @@ export function MarketActionPanel({
   const router = useRouter()
   const [honorChecked, setHonorChecked] = useState(false)
   const [claim, setClaim] = useState<'WON' | 'LOST' | ''>('')
+  const [venmoInput, setVenmoInput] = useState('')
+  const [savedVenmo, setSavedVenmo] = useState<string | null>(null)
+  const [venmoSaving, setVenmoSaving] = useState(false)
+
+  const activeVenmo = savedVenmo ?? userVenmoUsername ?? null
+
+  const saveVenmo = async () => {
+    const v = venmoInput.trim().replace(/^@/, '')
+    if (!v) return
+    setVenmoSaving(true)
+    await fetch('/api/user/profile', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ venmoUsername: v }),
+    })
+    setSavedVenmo(v)
+    setVenmoSaving(false)
+  }
   const [explanation, setExplanation] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -238,17 +256,38 @@ export function MarketActionPanel({
         return (
           <div className="gradient-border p-4 space-y-4">
 
-            {/* Venmo gate */}
-            {!userVenmoUsername ? (
-              <div className="flex items-center gap-2 text-xs text-amber-400/80 bg-amber-400/5 border border-amber-400/20 rounded-xl px-3 py-2.5">
-                <span>⚠️</span>
-                <span>Add your Venmo handle on your profile before taking a bet.</span>
+            {/* Venmo — inline input if not saved, read-only display if saved */}
+            {!activeVenmo ? (
+              <div className="space-y-1.5">
+                <p className="text-[10px] uppercase tracking-widest text-white/25 font-bold">Your Venmo</p>
+                <div className="flex gap-2">
+                  <div className="relative flex-1">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-white/40 text-sm select-none">@</span>
+                    <input
+                      type="text"
+                      value={venmoInput}
+                      onChange={(e) => setVenmoInput(e.target.value.replace(/^@/, ''))}
+                      placeholder="your-venmo"
+                      maxLength={30}
+                      className="w-full bg-white/[0.06] border border-amber-400/20 rounded-lg pl-6 pr-3 py-2 text-sm text-white placeholder:text-white/20 focus:outline-none focus:border-amber-400/40 transition-colors"
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={saveVenmo}
+                    disabled={!venmoInput.trim() || venmoSaving}
+                    className="px-3 py-2 rounded-lg bg-white/[0.06] border border-white/10 text-white/60 text-sm font-semibold hover:border-white/20 hover:text-white/80 disabled:opacity-40 transition-colors flex-shrink-0"
+                  >
+                    {venmoSaving ? '…' : 'Save'}
+                  </button>
+                </div>
+                <p className="text-[10px] text-white/20">So your opponent knows where to pay you.</p>
               </div>
             ) : (
               <div className="flex items-center justify-between">
                 <div>
                   <span className="text-[10px] uppercase tracking-widest text-white/25 font-bold block mb-1">Your Venmo</span>
-                  <span className="text-sm text-white/70 font-mono">@{userVenmoUsername}</span>
+                  <span className="text-sm text-white/70 font-mono">@{activeVenmo}</span>
                 </div>
                 {takerRisks !== null && takerWins !== null && (
                   <div className="text-right">
@@ -288,7 +327,7 @@ export function MarketActionPanel({
 
             <button
               onClick={placeBet}
-              disabled={!honorChecked || loading || !userVenmoUsername}
+              disabled={!honorChecked || loading || !activeVenmo}
               className="w-full py-3 rounded-xl font-bold text-sm text-white disabled:opacity-40 disabled:cursor-not-allowed hover:opacity-90 transition-opacity"
               style={{ background: 'linear-gradient(135deg, #7C3AED, #10B981)' }}
             >

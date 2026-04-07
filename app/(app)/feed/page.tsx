@@ -94,9 +94,9 @@ export default async function FeedPage({
         <div className="text-center py-16 space-y-3">
           <p className="text-4xl">🎸</p>
           <p className="text-white/60 font-medium">Nothing on the lot yet.</p>
-          <p className="text-white/30 text-sm">Be the first to drop a bet.</p>
+          <p className="text-white/30 text-sm">Be the first to create a bet.</p>
           <a href="/market/new" className="inline-block mt-2 text-sm font-semibold text-[#7C3AED]">
-            Drop a Bet →
+            Create a Bet →
           </a>
         </div>
       ) : (
